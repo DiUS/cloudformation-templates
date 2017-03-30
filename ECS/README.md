@@ -38,7 +38,13 @@ a log shipper like Sumo Logic or Splunk
 
 | Output                          | Purpose                                                                                                                                                   |
 |---------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Cluster                         | Passed into the service template                                                                                                                          |
-| Listener                        | Passed into the service template                                                                                                                          |
-| ApplicationLoadBalancerEndpoint | DNS name of the load balancer                                                                                                                             |
+| Cluster                         | Passed into the service template.                                                                                                                         |
+| Listener                        | Passed into the service template.                                                                                                                         |
+| ApplicationLoadBalancerEndpoint | DNS name of the load balancer.                                                                                                                            |
 | SecurityGroup                   | Provided such that security groups for other network-based services can be constructed. For example, to allow access to an RDS instance from a container. |
+
+### ecs-service.template ###
+
+| Output     | Purpose                                                                                     |
+|------------|---------------------------------------------------------------------------------------------|
+| ServiceArn | In conjunction with the cluster, can be used to manipulate the service via the CLI and API. |

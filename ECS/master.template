@@ -1,0 +1,187 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Deploys an ECS Service with an associated load balancer",
+  "Parameters": {
+    "KeyPair": {
+      "Description": "Name of an existing EC2 KeyPair to enable SSH access to the container instances",
+      "Type": "AWS::EC2::KeyPair::KeyName",
+      "ConstraintDescription": "Must be a valid EC2 keypair."
+    },
+    "LoadBalancerSubnets": {
+      "Description": "Subnet(s) for the load balancer",
+      "Type": "List<AWS::EC2::Subnet::Id>"
+    },
+    "ECSSubnets": {
+      "Description": "Subnets for the ECS container instances",
+      "Type": "List<AWS::EC2::Subnet::Id>"
+    },
+    "VpcId": {
+      "Description": "VPC ID for resources",
+      "Type": "AWS::EC2::VPC::Id"
+    },
+    "InstanceType": {
+      "Description": "Container instances EC2 instance type",
+      "Type": "String",
+      "Default": "t2.small",
+      "AllowedValues": [
+        "t2.nano",
+        "t2.micro",
+        "t2.small",
+        "t2.medium",
+        "t2.large",
+        "t2.xlarge",
+        "t2.2xlarge",
+        "m4.large",
+        "m4.xlarge",
+        "m4.2xlarge",
+        "m4.4xlarge",
+        "m4.10xlarge",
+        "m4.16xlarge",
+        "m3.medium",
+        "m3.large",
+        "m3.xlarge",
+        "m3.2xlarge",
+        "c4.large",
+        "c4.xlarge",
+        "c4.2xlarge",
+        "c4.4xlarge",
+        "c4.8xlarge",
+        "c3.large",
+        "c3.xlarge",
+        "c3.2xlarge",
+        "c3.4xlarge",
+        "c3.8xlarge",
+        "x1.32xlarge",
+        "x1.16xlarge",
+        "r4.large",
+        "r4.xlarge",
+        "r4.2xlarge",
+        "r4.4xlarge",
+        "r4.8xlarge",
+        "r4.16xlarge",
+        "r3.large",
+        "r3.xlarge",
+        "r3.2xlarge",
+        "r3.4xlarge",
+        "r3.8xlarge",
+        "i3.large",
+        "i3.xlarge",
+        "i3.2xlarge",
+        "i3.4xlarge",
+        "i3.8xlarge",
+        "i3.16xlarge",
+        "d2.xlarge",
+        "d2.2xlarge",
+        "d2.4xlarge",
+        "d2.8xlarge"
+      ],
+      "ConstraintDescription": "must be a valid EC2 instance type."
+    },
+    "DesiredCapacity": {
+      "Type": "Number",
+      "Default": 1,
+      "Description": "Number of instances to launch in your ECS cluster."
+    },
+    "MaxSize": {
+      "Type": "Number",
+      "Description": "Maximum number of instances that can be launched in your ECS cluster."
+    },
+    "Owner": {
+      "Description": "Used to tag resources",
+      "Type": "String"
+    },
+    "SourceCidr": {
+      "Description": "Restrict SSH access to the container instances to this CIDR",
+      "Type": "String",
+      "Default": "0.0.0.0/0"
+    },
+    "TemplateBucket": {
+      "Description": "S3 bucket containing the tempalates for the nested stacks, in the form 'https://s3.amazonaws.com/<bucketname></path>'",
+      "Type": "String"
+    },
+    "HttpdServiceVersion": {
+      "Description": "Image tag of the hhtpd service to run",
+      "Type": "String",
+      "Default": "latest"
+    }
+  },
+  "Resources": {
+    "ECSCluster": {
+      "Type": "AWS::CloudFormation::Stack",
+      "Properties": {
+        "TemplateURL": {
+          "Fn::Sub": "${TemplateBucket}/ecs-cluster.template"
+        },
+        "TimeoutInMinutes": 20,
+        "Parameters": {
+          "KeyPair": {
+            "Ref": "KeyPair"
+          },
+          "LoadBalancerSubnets": {
+            "Fn::Join": [
+              ",",
+              {
+                "Ref": "LoadBalancerSubnets"
+              }
+            ]
+          },
+          "ECSSubnets": {
+            "Fn::Join": [
+              ",",
+              {
+                "Ref": "ECSSubnets"
+              }
+            ]
+          },
+          "VpcId": {
+            "Ref": "VpcId"
+          },
+          "InstanceType": {
+            "Ref": "InstanceType"
+          },
+          "DesiredCapacity": {
+            "Ref": "DesiredCapacity"
+          },
+          "MaxSize": {
+            "Ref": "MaxSize"
+          },
+          "Owner": {
+            "Ref": "Owner"
+          },
+          "SourceCidr": {
+            "Ref": "SourceCidr"
+          }
+        }
+      }
+    },
+    "HttpdService": {
+      "Type": "AWS::CloudFormation::Stack",
+      "Properties": {
+        "TemplateURL": {
+          "Fn::Sub": "${TemplateBucket}/ecs-service.template"
+        },
+        "TimeoutInMinutes": 20,
+        "Parameters": {
+          "Listener": {
+            "Fn::Sub": "${ECSCluster.Outputs.Listener}"
+          },
+          "VpcId": {
+            "Ref": "VpcId"
+          },
+          "ImageName": "httpd",
+          "ImageTag": {
+            "Ref": "HttpdServiceVersion"
+          },
+          "TaskCount": 1,
+          "ContainerPort": 80,
+          "ContainerMemoryReservation": 128,
+          "ECSCluster": {
+            "Fn::Sub": "${ECSCluster.Outputs.Cluster}"
+          },
+          "ServiceName": "web-service",
+          "Priority": 1
+        }
+      }
+    }
+  }
+}

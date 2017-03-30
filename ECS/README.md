@@ -26,7 +26,19 @@ stood up, e.g. Spring, Rails etc.
 
 Using this approach for a production workload would require at a minimum:
 
-* Considering the security of the container instances.
+* Considering the security of the container instances. Preferably they
+should be located in a private subnet with ssh access locked down to trusted
+sources.
 * Building log shipping into the cluster, either native CloudWatch Logs or
 a log shipper like Sumo Logic or Splunk
 
+## Template Outputs ##
+
+### ecs-cluster.template ###
+
+| Output                          | Purpose                                                                                                                                                   |
+|---------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Cluster                         | Passed into the service template                                                                                                                          |
+| Listener                        | Passed into the service template                                                                                                                          |
+| ApplicationLoadBalancerEndpoint | DNS name of the load balancer                                                                                                                             |
+| SecurityGroup                   | Provided such that security groups for other network-based services can be constructed. For example, to allow access to an RDS instance from a container. |

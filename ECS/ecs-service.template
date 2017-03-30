@@ -1,0 +1,289 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Deploys a service into ECS",
+  "Parameters": {
+    "Listener": {
+      "Description": "The ALB Listener to attach the path-base rule",
+      "Type": "String"
+    },
+    "VpcId": {
+      "Description": "The ID of the VPC in which the targets are located",
+      "Type": "AWS::EC2::VPC::Id"
+    },
+    "ImageName": {
+      "Description": "Docker container image to launch, including repository",
+      "Type": "String"
+    },
+    "ImageTag": {
+      "Description": "Tag of container to launch",
+      "Type": "String",
+      "Default": "latest"
+    },
+    "TaskCount": {
+      "Description": "Number of tasks to run in the service",
+      "Type": "Number",
+      "Default": 1
+    },
+    "ContainerPort": {
+      "Description": "Internal port on which the container listers",
+      "Type": "Number"
+    },
+    "ContainerMemoryReservation": {
+      "Description": "Memory allocation for the container. Tasks that exceed their allocation are restarted.",
+      "Type": "Number"
+    },
+    "ECSCluster": {
+      "Description": "ECS Cluster to attach the service",
+      "Type": "String"
+    },
+    "TaskRole": {
+      "Description": "Optional ARN of task role for the service task",
+      "Type": "String",
+      "Default": ""
+    },
+    "ServiceName": {
+      "Description": "Used to identify task and path for load balancer rule",
+      "Type": "String"
+    },
+    "Priority": {
+      "Description": "ALB rule priority for this service. Must be unique.",
+      "Type": "Number"
+    },
+    "Env1": {
+      "Description": "Environment variable with name 'Env1' and value 'Val1' is injected into the task",
+      "Type": "String",
+      "Default": "Env1"
+    },
+    "Val1": {
+      "Type": "String",
+      "Default": ""
+    },
+    "Env2": {
+      "Description": "Environment variable with name 'Env2' and value 'Val2' is injected into the task",
+      "Type": "String",
+      "Default": "Env2"
+    },
+    "Val2": {
+      "Type": "String",
+      "Default": ""
+    },
+    "Env3": {
+      "Description": "Environment variable with name 'Env3' and value 'Val3' is injected into the task",
+      "Type": "String",
+      "Default": "Env3"
+    },
+    "Val3": {
+      "Type": "String",
+      "Default": ""
+    }
+  },
+  "Conditions": {
+    "HasTaskRole": {
+      "Fn::Not": [
+        {
+          "Fn::Equals": [
+            {
+              "Ref": "TaskRole"
+            },
+            ""
+          ]
+        }
+      ]
+    }
+  },
+  "Resources": {
+    "TaskDefinition": {
+      "Type": "AWS::ECS::TaskDefinition",
+      "Properties": {
+        "TaskRoleArn": {
+          "Fn::If": [
+            "HasTaskRole",
+            {
+              "Ref": "TaskRole"
+            },
+            {
+              "Ref": "AWS::NoValue"
+            }
+          ]
+        },
+        "ContainerDefinitions": [
+          {
+            "Name": {
+              "Ref": "ServiceName"
+            },
+            "Environment": [
+              {
+                "Name": {
+                  "Ref": "Env1"
+                },
+                "Value": {
+                  "Ref": "Val1"
+                }
+              },
+              {
+                "Name": {
+                  "Ref": "Env2"
+                },
+                "Value": {
+                  "Ref": "Val2"
+                }
+              },
+              {
+                "Name": {
+                  "Ref": "Env3"
+                },
+                "Value": {
+                  "Ref": "Val3"
+                }
+              }
+            ],
+            "Essential": "true",
+            "Image": {
+              "Fn::Sub": "${ImageName}:${ImageTag}"
+            },
+            "Links": [],
+            "Memory": {
+              "Ref": "ContainerMemoryReservation"
+            },
+            "PortMappings": [
+              {
+                "ContainerPort": {
+                  "Ref": "ContainerPort"
+                }
+              }
+            ]
+          }
+        ],
+        "Family": {
+          "Fn::Sub": "${AWS::StackName}"
+        },
+        "Volumes": []
+      }
+    },
+    "Service": {
+      "Type": "AWS::ECS::Service",
+      "DependsOn": [
+        "ListenerRule"
+      ],
+      "Properties": {
+        "Cluster": {
+          "Ref": "ECSCluster"
+        },
+        "Role": {
+          "Ref": "ECSServiceRole"
+        },
+        "DeploymentConfiguration": {
+          "MaximumPercent": 200,
+          "MinimumHealthyPercent": 50
+        },
+        "DesiredCount": {
+          "Ref": "TaskCount"
+        },
+        "LoadBalancers": [
+          {
+            "ContainerName": {
+              "Ref": "ServiceName"
+            },
+            "ContainerPort": {
+              "Ref": "ContainerPort"
+            },
+            "TargetGroupArn": {
+              "Ref": "TargetGroup"
+            }
+          }
+        ],
+        "TaskDefinition": {
+          "Ref": "TaskDefinition"
+        }
+      }
+    },
+    "ECSServiceRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": [
+                  "ecs.amazonaws.com"
+                ]
+              },
+              "Action": [
+                "sts:AssumeRole"
+              ]
+            }
+          ]
+        },
+        "Path": "/",
+        "ManagedPolicyArns": [
+          "arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceRole"
+        ]
+      }
+    },
+    "TargetGroup": {
+      "Type": "AWS::ElasticLoadBalancingV2::TargetGroup",
+      "Properties": {
+        "HealthCheckIntervalSeconds": 10,
+        "HealthCheckPath": "/",
+        "HealthCheckProtocol": "HTTP",
+        "HealthCheckTimeoutSeconds": 5,
+        "HealthyThresholdCount": 2,
+        "Matcher": {
+          "HttpCode": "200-299,300-399"
+        },
+        "Port": 1,
+        "Protocol": "HTTP",
+        "UnhealthyThresholdCount": 3,
+        "VpcId": {
+          "Ref": "VpcId"
+        },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": {
+              "Fn::Sub": "${ServiceName}-target-group"
+            }
+          }
+        ]
+      }
+    },
+    "ListenerRule": {
+      "Type": "AWS::ElasticLoadBalancingV2::ListenerRule",
+      "Properties": {
+        "Actions": [
+          {
+            "Type": "forward",
+            "TargetGroupArn": {
+              "Ref": "TargetGroup"
+            }
+          }
+        ],
+        "Conditions": [
+          {
+            "Field": "path-pattern",
+            "Values": [
+              {
+                "Fn::Sub": "/${ServiceName}/*"
+              }
+            ]
+          }
+        ],
+        "ListenerArn": {
+          "Ref": "Listener"
+        },
+        "Priority": {
+          "Ref": "Priority"
+        }
+      }
+    }
+  },
+  "Outputs": {
+    "ServiceArn": {
+      "Description": "ARN of the created ECS service",
+      "Value": {
+        "Ref": "Service"
+      }
+    }
+  }
+}
